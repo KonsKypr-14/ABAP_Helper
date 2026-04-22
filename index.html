@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MD Viewer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink:       #24292e;
+    --paper:     #ffffff;
+    --cream:     #f6f8fa;
+    --accent:   #0366d6;
+    --accent-lt: #6f42c1;
+    --muted:     #586069;
+    --rule:      #e1e4e8;
+    --code-bg:   #f6f8fa;
+    --sidebar-w: 290px;
+  }
+
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    display: flex;
+    height: 100vh;
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: var(--sidebar-w);
+    min-width: var(--sidebar-w);
+    background: var(--cream);
+    border-right: 1px solid var(--rule);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    z-index: 10;
+  }
+
+  #sidebar-header {
+    padding: 26px 22px 16px;
+    border-bottom: 1px solid var(--rule);
+    flex-shrink: 0;
+  }
+  .logo {
+    font-family: 'Fraunces', serif;
+    font-size: 21px; font-weight: 600;
+    color: var(--ink); letter-spacing: -.5px;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .logo svg { color: var(--amber); flex-shrink: 0; }
+  .subtitle {
+    font-size: 10.5px; color: var(--muted);
+    margin-top: 4px; letter-spacing: .6px;
+    text-transform: uppercase; font-weight: 500;
+  }
+
+  /* search */
+  #search-wrap {
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid var(--rule);
+    flex-shrink: 0;
+  }
+  #search {
+    width: 100%;
+    padding: 7px 10px 7px 30px;
+    border: 1.5px solid var(--rule);
+    border-radius: 7px;
+    background: var(--paper)
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237a7468' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E")
+      no-repeat 8px center;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12.5px; color: var(--ink);
+    outline: none;
+    transition: border-color .15s;
+  }
+  #search:focus { border-color: var(--amber); }
+  #search::placeholder { color: var(--muted); }
+
+  /* page list */
+  #page-list { flex: 1; overflow-y: auto; padding: 6px 0 10px; }
+
+  .page-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 18px 9px 20px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background .12s, border-color .12s;
+    user-select: none;
+  }
+  .page-item:hover  { background: rgba(200,134,10,.07); border-left-color: var(--amber-lt); }
+  .page-item.active { background: rgba(200,134,10,.13); border-left-color: var(--amber); }
+  .pi-icon  { font-size: 14px; flex-shrink: 0; opacity: .7; }
+  .pi-title {
+    font-size: 13px; font-weight: 500; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
+  }
+  .page-item.active .pi-title { color: var(--amber); }
+
+  #page-count {
+    padding: 6px 16px 10px;
+    font-size: 11px; color: var(--muted);
+    text-align: right; flex-shrink: 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  /* ── MAIN ── */
+  #main {
+    flex: 1; display: flex; flex-direction: column;
+    height: 100vh; overflow: hidden; min-width: 0;
+  }
+
+  #toolbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 22px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+    flex-shrink: 0;
+  }
+
+  #page-title-display {
+    font-family: 'Fraunces', serif;
+    font-size: 17px; font-weight: 600;
+    color: var(--ink); flex: 1; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  #file-path-display {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--muted);
+    background: var(--code-bg);
+    padding: 3px 8px; border-radius: 5px;
+    white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; max-width: 280px;
+  }
+
+  .tb-btn {
+    padding: 6px 14px; border-radius: 6px;
+    border: 1.5px solid var(--rule); background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px; font-weight: 500;
+    cursor: pointer; color: var(--muted);
+    transition: all .15s;
+    display: flex; align-items: center; gap: 5px;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .tb-btn:hover  { border-color: var(--amber); color: var(--amber); background: rgba(200,134,10,.05); }
+  .tb-btn.active { border-color: var(--amber); color: var(--amber); background: rgba(200,134,10,.10); }
+
+  .tb-sep { width: 1px; height: 22px; background: var(--rule); flex-shrink: 0; }
+
+  #toggle-sidebar-btn {
+    display: none; background: none; border: none;
+    cursor: pointer; color: var(--muted);
+    padding: 3px; flex-shrink: 0;
+  }
+
+  /* ── CONTENT ── */
+  #content-area { flex: 1; overflow: hidden; position: relative; }
+
+  #preview-pane {
+    position: absolute; inset: 0;
+    overflow-y: auto;
+    padding: 48px 64px 80px;
+  }
+
+  #md-output { max-width: 820px; margin: 0 auto; }
+
+  .state-msg {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%; gap: 14px;
+    color: var(--muted); text-align: center; padding: 40px;
+  }
+  .state-msg svg { opacity: .25; }
+  .state-msg p   { font-size: 15px; line-height: 1.65; }
+  .state-msg small {
+    font-size: 12px; opacity: .8;
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--code-bg); padding: 4px 10px;
+    border-radius: 5px; display: inline-block;
+  }
+
+  /* ── MARKDOWN (GitHub Style) ── */
+  .md-body {
+    line-height: 1.6;
+    font-size: 16px;
+    color: var(--ink);
+  }
+
+  .md-body h1 {
+    font-size: 2em;
+    font-weight: 600;
+    margin: 24px 0 16px 0;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--rule);
+    line-height: 1.25;
+  }
+  .md-body h2 {
+    font-size: 1.5em;
+    font-weight: 600;
+    margin: 24px 0 16px 0;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--rule);
+    line-height: 1.25;
+  }
+  .md-body h3 {
+    font-size: 1.25em;
+    font-weight: 600;
+    margin: 24px 0 16px 0;
+    line-height: 1.25;
+  }
+  .md-body h4 {
+    font-size: 1em;
+    font-weight: 600;
+    margin: 24px 0 16px 0;
+    line-height: 1.25;
+  }
+
+  .md-body h5 {
+    font-size: 0.875em;
+    font-weight: 600;
+    margin: 24px 0 16px 0;
+    line-height: 1.25;
+  }
+
+  .md-body h6 {
+    font-size: 0.85em;
+    font-weight: 600;
+    margin: 24px 0 16px 0;
+    color: var(--muted);
+    line-height: 1.25;
+  }
+
+  .md-body p {
+    margin: 0 0 16px 0;
+    line-height: 1.6;
+  }
+
+  .md-body ul,
+  .md-body ol {
+    margin: 0 0 16px 0;
+    padding-left: 2em;
+  }
+
+  .md-body li {
+    margin-bottom: 8px;
+  }
+
+  .md-body ul ul,
+  .md-body ol ol,
+  .md-body ul ol,
+  .md-body ol ul {
+    margin: 8px 0 0 0;
+  }
+
+  .md-body blockquote {
+    padding: 0 1em;
+    color: var(--muted);
+    border-left: 0.25em solid var(--rule);
+    margin: 0 0 16px 0;
+  }
+
+  .md-body blockquote > :first-child {
+    margin-top: 0;
+  }
+
+  .md-body blockquote > :last-child {
+    margin-bottom: 0;
+  }
+
+  .md-body code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+    background: var(--code-bg);
+    padding: 0.2em 0.4em;
+    margin: 0;
+    border-radius: 6px;
+    color: var(--ink);
+  }
+
+  .md-body pre {
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 16px;
+    overflow: auto;
+    margin: 0 0 16px 0;
+    line-height: 1.45;
+  }
+
+  .md-body pre code {
+    background: transparent;
+    color: var(--ink);
+    padding: 0;
+    margin: 0;
+    font-size: 0.85em;
+    display: inline;
+    line-height: inherit;
+  }
+
+  .md-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 16px 0;
+    font-size: 0.9em;
+  }
+
+  .md-body table tr {
+    background: var(--paper);
+    border-top: 1px solid var(--rule);
+  }
+
+  .md-body table tr:nth-child(2n) {
+    background: var(--cream);
+  }
+
+  .md-body table th,
+  .md-body table td {
+    padding: 6px 13px;
+    border: 1px solid var(--rule);
+  }
+
+  .md-body table th {
+    font-weight: 600;
+    background: var(--cream);
+  }
+
+  .md-body a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .md-body a:hover {
+    text-decoration: underline;
+  }
+
+  .md-body hr {
+    height: 0.25em;
+    padding: 0;
+    margin: 24px 0;
+    background: var(--rule);
+    border: 0;
+    border-radius: 3px;
+  }
+
+  .md-body img {
+    max-width: 100%;
+    height: auto;
+    margin: 16px 0;
+    display: block;
+    border-radius: 6px;
+  }
+
+  .md-body strong {
+    font-weight: 600;
+  }
+
+  .md-body em {
+    font-style: italic;
+  }
+
+  .md-body del {
+    color: var(--muted);
+    text-decoration: line-through;
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  @keyframes fadeSlide {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .fade-in { animation: fadeSlide .2s ease both; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 720px) {
+    #toggle-sidebar-btn { display: flex; }
+    #sidebar {
+      position: fixed; left: -100%; top: 0;
+      transition: left .25s ease; z-index: 100;
+      box-shadow: 4px 0 20px rgba(0,0,0,.15);
+    }
+    #sidebar.open { left: 0; }
+    #preview-pane { padding: 22px 16px 60px; }
+    #file-path-display { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── SIDEBAR ── -->
+<aside id="sidebar">
+  <div id="sidebar-header">
+    <div class="logo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+      </svg>
+      MD Viewer
+    </div>
+    <div class="subtitle" id="sidebar-subtitle">0 pages</div>
+  </div>
+
+  <div id="search-wrap">
+    <input id="search" type="text" placeholder="Filter pages…"
+           oninput="filterPages(this.value)" autocomplete="off">
+  </div>
+
+  <div id="page-list"></div>
+  <div id="page-count"></div>
+</aside>
+
+<!-- ── MAIN ── -->
+<main id="main">
+  <div id="toolbar">
+    <button id="toggle-sidebar-btn" onclick="toggleSidebar()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="6"  x2="21" y2="6"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+
+    <span id="page-title-display">Select a page</span>
+    <span id="file-path-display"></span>
+
+    <div class="tb-sep"></div>
+
+    <button class="tb-btn" id="btn-raw" onclick="toggleRaw()" title="Show raw Markdown source">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+      </svg>
+      Raw
+    </button>
+  </div>
+
+  <div id="content-area">
+    <div id="preview-pane">
+      <div class="state-msg">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <p>Select a page from the sidebar.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+// ── DATA — injected by build.py / build.js ─────────────────────────────────
+//
+//  Each entry: { title: string, file: string, content: string }
+//
+const PAGES = [{"title": "Debugger Tutorial", "file": "tutorial/edit_sap_connections.md", "content": "# How to add a connection\n\n> [!NOTE]\n> The theme that is used is SAP Signature theme.\n\nIn order to create a connection in SAP Logon we have to clear on the new file icon or shortcut (CTRL + N). After that we click on the Connection.\n\n![image](../images/edit_sap_connections/connection.png)\n\n1. On the first screen select the User Specified System. Is the most commonly used. In case you want to connect on a specific host (displayed after being on same network + changing the Service and Host file), there will be a different icon (second icon).\n\n![image](../images/edit_sap_connections/create_new_1.png)\n\n2. On the next screen we write:\n\n![image](../images/edit_sap_connections/create_new_2.png)\n\na. A Description of the connection. This could be the company name and/or the system \"development/quality/production\".\n\nb. The application server you want to connect. This can be an IP address, with or without a port (1.2.3.4, 5.6.7.8:12345), or a domain name or host name (after configuring the host file) \"example.dev_system\".\n\nc. The instance number. Here you can only insert number from 00 - 99.\n\nd. The system ID. The ID (DEV, S4D, etc.) could be the same for different companies/clients but the combination with application server is unique.\n\ne. SAProuter String. In case is needed it will provided to you by the company/client or the IT.\n\n3. After finishing the screen you click on the Finish button at bottom right.\n\n4. You are ready to connect to the system!\n\n\n# Keep the connection with you.\n\n### Don't lose your connection after changing machine.\n\nIn order to avoid inserting 1 by 1 all the connections that you may have, when you change machine, we can transfer all the connection.\n\nOn our old machine we have to go to the following path and copy the common folder.\n\n> [!NOTE]\n> Where ### is your PC user.\n> \n> C:\\Users\\###\\AppData\\Roaming\\SAP\n\nAfter that paste the common folder into you new PC and you are ready to go!\n\n![image](../images/edit_sap_connections/connection_path.png)"}, {"title": "SAP Connections", "file": "tutorial/edit_sap_connections.md", "content": "# How to add a connection\n\n> [!NOTE]\n> The theme that is used is SAP Signature theme.\n\nIn order to create a connection in SAP Logon we have to clear on the new file icon or shortcut (CTRL + N). After that we click on the Connection.\n\n![image](../images/edit_sap_connections/connection.png)\n\n1. On the first screen select the User Specified System. Is the most commonly used. In case you want to connect on a specific host (displayed after being on same network + changing the Service and Host file), there will be a different icon (second icon).\n\n![image](../images/edit_sap_connections/create_new_1.png)\n\n2. On the next screen we write:\n\n![image](../images/edit_sap_connections/create_new_2.png)\n\na. A Description of the connection. This could be the company name and/or the system \"development/quality/production\".\n\nb. The application server you want to connect. This can be an IP address, with or without a port (1.2.3.4, 5.6.7.8:12345), or a domain name or host name (after configuring the host file) \"example.dev_system\".\n\nc. The instance number. Here you can only insert number from 00 - 99.\n\nd. The system ID. The ID (DEV, S4D, etc.) could be the same for different companies/clients but the combination with application server is unique.\n\ne. SAProuter String. In case is needed it will provided to you by the company/client or the IT.\n\n3. After finishing the screen you click on the Finish button at bottom right.\n\n4. You are ready to connect to the system!\n\n\n# Keep the connection with you.\n\n### Don't lose your connection after changing machine.\n\nIn order to avoid inserting 1 by 1 all the connections that you may have, when you change machine, we can transfer all the connection.\n\nOn our old machine we have to go to the following path and copy the common folder.\n\n> [!NOTE]\n> Where ### is your PC user.\n> \n> C:\\Users\\###\\AppData\\Roaming\\SAP\n\nAfter that paste the common folder into you new PC and you are ready to go!\n\n![image](../images/edit_sap_connections/connection_path.png)"}];
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let currentIdx = -1;
+let rawMode    = false;
+
+// ── BOOT ───────────────────────────────────────────────────────────────────
+(function boot() {
+  if (PAGES.length === 0) {
+    document.getElementById('sidebar-subtitle').textContent = 'No pages';
+    document.getElementById('preview-pane').innerHTML = `
+      <div class="state-msg">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p><strong>No pages found.</strong><br>Run the build script to bake your .md files in.</p>
+        <small>python build.py</small>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('sidebar-subtitle').textContent =
+    PAGES.length + ' page' + (PAGES.length !== 1 ? 's' : '');
+
+  renderSidebar(PAGES);
+  openPage(0);
+})();
+
+// ── SIDEBAR ────────────────────────────────────────────────────────────────
+function renderSidebar(list) {
+  const el = document.getElementById('page-list');
+  el.innerHTML = '';
+
+  if (list.length === 0) {
+    el.innerHTML = '<div style="padding:18px;font-size:13px;color:var(--muted);text-align:center;">No results</div>';
+    document.getElementById('page-count').textContent = '';
+    return;
+  }
+
+  list.forEach(page => {
+    const realIdx = PAGES.indexOf(page);
+    const item = document.createElement('div');
+    item.className = 'page-item' + (realIdx === currentIdx ? ' active' : '');
+    item.dataset.idx = realIdx;
+    item.innerHTML = `
+      <span class="pi-icon">📄</span>
+      <span class="pi-title" title="${escHtml(page.file)}">${escHtml(page.title)}</span>
+    `;
+    item.addEventListener('click', () => {
+      openPage(realIdx);
+      document.getElementById('sidebar').classList.remove('open');
+    });
+    el.appendChild(item);
+  });
+
+  document.getElementById('page-count').textContent =
+    list.length < PAGES.length ? `${list.length} of ${PAGES.length} pages` : '';
+}
+
+function filterPages(q) {
+  const lq = q.toLowerCase().trim();
+  renderSidebar(lq
+    ? PAGES.filter(p => p.title.toLowerCase().includes(lq) || p.file.toLowerCase().includes(lq))
+    : PAGES
+  );
+}
+
+function updateActive() {
+  document.querySelectorAll('.page-item').forEach(el => {
+    el.classList.toggle('active', +el.dataset.idx === currentIdx);
+  });
+}
+
+// ── OPEN PAGE ──────────────────────────────────────────────────────────────
+function openPage(idx) {
+  currentIdx = idx;
+  const page = PAGES[idx];
+  updateActive();
+
+  document.getElementById('page-title-display').textContent = page.title;
+  document.getElementById('file-path-display').textContent  = page.file;
+
+  rawMode ? showRaw(page.content) : showPreview(page.content, page.file);
+}
+
+function toggleRaw() {
+  if (currentIdx < 0) return;
+  rawMode = !rawMode;
+  document.getElementById('btn-raw').classList.toggle('active', rawMode);
+  const page = PAGES[currentIdx];
+  rawMode ? showRaw(page.content) : showPreview(page.content, page.file);
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────────
+function showPreview(md, filePath) {
+  // basePath: folder of the .md file, so relative image paths resolve correctly
+  const basePath = filePath && filePath.includes('/')
+    ? filePath.substring(0, filePath.lastIndexOf('/') + 1)
+    : '';
+
+  const pane = document.getElementById('preview-pane');
+  const div  = document.createElement('div');
+  div.id        = 'md-output';
+  div.className = 'md-body fade-in';
+  div.innerHTML = parseMarkdown(md, basePath);
+  div.addEventListener('click', handleAnchorClick);
+
+  pane.innerHTML = '';
+  pane.appendChild(div);
+  pane.scrollTop = 0;
+}
+
+function showRaw(md) {
+  const pane = document.getElementById('preview-pane');
+  pane.innerHTML = '';
+  const pre = document.createElement('pre');
+  pre.style.cssText = `
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;line-height:1.72;
+    white-space:pre-wrap;word-break:break-word;
+    color:var(--ink);padding:10px 4px;
+  `;
+  pre.textContent = md;
+  pane.appendChild(pre);
+  pane.scrollTop = 0;
+}
+
+// ── ANCHOR LINKS ───────────────────────────────────────────────────────────
+function handleAnchorClick(e) {
+  const a = e.target.closest('a');
+  if (!a) return;
+  const href = a.getAttribute('href') || '';
+  if (href.startsWith('#')) {
+    e.preventDefault();
+    const target = document.getElementById(CSS.escape(href.slice(1)));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+// ── MARKDOWN PARSER ────────────────────────────────────────────────────────
+function headingToId(text) {
+  return text.toLowerCase()
+    .replace(/[^\w\s-]/g, '').trim()
+    .replace(/[\s_]+/g, '-').replace(/-+/g, '-');
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function resolveUrl(url, base) {
+  if (!url || /^(https?:\/\/|\/\/|data:|#)/.test(url)) return url;
+  return base + url;
+}
+
+function parseCells(row) {
+  const p = row.split('|');
+  if (p[0].trim() === '') p.shift();
+  if (p[p.length-1].trim() === '') p.pop();
+  return p.map(c => c.trim());
+}
+
+function parseMarkdown(md, base) {
+  base = base || '';
+  if (!md || !md.trim()) return '<p style="color:var(--muted);font-style:italic;">Empty file.</p>';
+
+  let h = md;
+
+  // 1 — protect fenced code blocks
+  const cb = [];
+  h = h.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    cb.push(`<pre><code class="lang-${escHtml(lang)}">${escHtml(code.trimEnd())}</code></pre>`);
+    return `\x00CB${cb.length-1}\x00`;
+  });
+
+  // 2 — protect inline code
+  const ic = [];
+  h = h.replace(/`([^`\n]+)`/g, (_, c) => {
+    ic.push(`<code>${escHtml(c)}</code>`);
+    return `\x00IC${ic.length-1}\x00`;
+  });
+
+  // 3 — HR
+  h = h.replace(/^[-*_]{3,}\s*$/gm, '<hr>');
+
+  // 4 — headings with anchors
+  h = h.replace(/^(#{1,6}) (.+)$/gm, (_, hh, txt) => {
+    const lvl = hh.length;
+    const id  = headingToId(txt.trim());
+    return `<h${lvl} id="${id}">${fmt(txt.trim(), base)}</h${lvl}>`;
+  });
+
+  // 5 — blockquotes
+  h = h.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+  h = h.replace(/<\/blockquote>\n<blockquote>/g, '\n');
+
+  // 6 — tables
+  h = h.replace(/((?:^\|.+\|\s*\n)+)/gm, block => {
+    const lines = block.trim().split('\n');
+    if (lines.length < 2 || !/^[\s|:-]+$/.test(lines[1])) return block;
+    const th = parseCells(lines[0]).map(c => `<th>${fmt(c,base)}</th>`).join('');
+    const tb = lines.slice(2).map(r =>
+      `<tr>${parseCells(r).map(c=>`<td>${fmt(c,base)}</td>`).join('')}</tr>`
+    ).join('');
+    return `<table><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>`;
+  });
+
+  // 7 — unordered lists
+  h = h.replace(/((?:^[ \t]*[-*+] .+\n?)+)/gm, block => {
+    const items = block.trim().split('\n')
+      .map(l => `<li>${fmt(l.replace(/^[ \t]*[-*+] /,''),base)}</li>`).join('');
+    return `<ul>${items}</ul>`;
+  });
+
+  // 8 — ordered lists
+  h = h.replace(/((?:^[ \t]*\d+\. .+\n?)+)/gm, block => {
+    const items = block.trim().split('\n')
+      .map(l => `<li>${fmt(l.replace(/^[ \t]*\d+\. /,''),base)}</li>`).join('');
+    return `<ol>${items}</ol>`;
+  });
+
+  // 9 — images (resolve relative paths)
+  h = h.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_,alt,src) =>
+    `<img src="${escHtml(resolveUrl(src,base))}" alt="${escHtml(alt)}">`);
+
+  // 10 — links
+  h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_,text,href) => {
+    if (href.startsWith('#')) return `<a href="${href}">${fmt(text,base)}</a>`;
+    return `<a href="${escHtml(resolveUrl(href,base))}" target="_blank" rel="noopener">${fmt(text,base)}</a>`;
+  });
+
+  // 11 — paragraphs
+  h = h.split(/\n{2,}/).map(b => {
+    b = b.trim();
+    if (!b) return '';
+    if (/^<(h[1-6]|ul|ol|blockquote|pre|table|div|hr|img|\x00CB)/.test(b)) return b;
+    return `<p>${fmt(b.replace(/\n/g,' '),base)}</p>`;
+  }).join('\n');
+
+  // 12 — restore
+  cb.forEach((v,i) => { h = h.split(`\x00CB${i}\x00`).join(v); });
+  ic.forEach((v,i) => { h = h.split(`\x00IC${i}\x00`).join(v); });
+
+  return h;
+}
+
+// inline formatting
+function fmt(s, base) {
+  s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  s = s.replace(/\*\*(.+?)\*\*/g,     '<strong>$1</strong>');
+  s = s.replace(/__(.+?)__/g,         '<strong>$1</strong>');
+  s = s.replace(/\*(.+?)\*/g,         '<em>$1</em>');
+  s = s.replace(/_(.+?)_/g,           '<em>$1</em>');
+  s = s.replace(/~~(.+?)~~/g,         '<del>$1</del>');
+  s = s.replace(/`([^`]+)`/g, (_,c) => `<code>${escHtml(c)}</code>`);
+  s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_,alt,src) =>
+    `<img src="${escHtml(resolveUrl(src,base))}" alt="${escHtml(alt)}">`);
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_,text,href) => {
+    if (href.startsWith('#')) return `<a href="${href}">${text}</a>`;
+    return `<a href="${escHtml(resolveUrl(href,base))}" target="_blank" rel="noopener">${text}</a>`;
+  });
+  return s;
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+</script>
+</body>
+</html>
